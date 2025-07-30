@@ -1,12 +1,11 @@
 version 1.0
 
 import "../structs/Structs.wdl"
-
+# swiped from a broad workflow ;)
 task Minimap2 {
     input {
         File reads_file
         File ref_fasta
-        String RG
         String prefix
         String map_preset = "-x map-ont"
 
@@ -20,8 +19,6 @@ task Minimap2 {
         ref_fasta:        "reference fasta"
         prefix:           "prefix to use in the output bam file. (e.g. sample1.prefix.bam)"
         # RG parameter removed as BAM already contains read group information from Dorado
-        ## WRONG, this is causing issues with Dorado polish!!! Back into the task it goes.
-        RG:               "read group information to be supplied to parameter '-R' (note that tabs should be input as '\t')"
         map_preset:       "[ Default: '-x map-ont' ] preset to be used for minimap2 parameter '-x'"
     }
 
@@ -33,11 +30,11 @@ task Minimap2 {
     command <<<
         set -euxo pipefail
 
-        NPROCS=$( cat /proc/cpuinfo | grep '^processor' | tail -n1 | awk '{print $NF+1}' )
+        NPROCS=$( grep '^processor' /proc/cpuinfo | tail -n1 | awk '{print $NF+1}' )
         RAM_IN_GB=$( free -g | grep "^Mem" | awk '{print $2}' )
         MEM_FOR_SORT=$( echo "" | awk "{print int(($RAM_IN_GB - 1)/$NPROCS)}" )
 
-        # No RG parameter needed as it's already in the BAM # this is FALSE
+        # No RG parameter needed as it's already in the BAM
         # drop y since it's causing faulty bam issues >:|
         MAP_PARAMS="-aYL --MD --eqx -x ~{map_preset} -t $NPROCS ~{ref_fasta}"
 

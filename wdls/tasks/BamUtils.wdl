@@ -25,7 +25,7 @@ task MergeBams {
     Int disk_size = 50 + 2*ceil(size(input_bams, "GB"))
 
     command <<<
-    set -euxo pipefail # if anything breaks crash out
+    set -euo pipefail # if anything breaks crash out
 
     # get the number of procs we have available
     NPROCS=$( grep '^processor' /proc/cpuinfo | tail -n1 | awk '{print $NF+1}' )
@@ -172,7 +172,7 @@ task FixBamHeaderRG {
 
     parameter_meta {
         input_bam: "raw bam with dirty header, filled with unused RGs"
-        RG: "Optional: read group to keep?" # nah no need, unless?
+        RG: "Optional: read group to keep? Not implemented." # nah no need, unless?
     }
 
     Int disk_size = 365 +  2 * ceil(size(input_bam, "GB"))
@@ -183,8 +183,6 @@ task FixBamHeaderRG {
 
         # first things first, lets pull our basename
         fname="$(basename ~{input_bam})"
-        bname="${filename%.bam}"
-
         # okay, pull the current header with a simple grep and save it to a file.
         samtools view -H ~{input_bam} > dirty_header.sam
         cat header_dirty.sam | grep "^@RG" > rgs_used.txt
@@ -249,7 +247,7 @@ task FixBamHeaderRG {
     >>>
 
     output {
-        File bam_sanitized = select_first(glob("fixed/*.bam"))
+        File sanitized_bam = glob("fixed/*.clean_header.bam")[0]
     }
 
     #########################
@@ -260,13 +258,79 @@ task FixBamHeaderRG {
         boot_disk_gb:       10,
         preemptible_tries:  3,
         max_retries:        1,
-        docker:             "mjfos2r/align-tools:latest"
+        docker:             "mjfos2r/samtools:latest"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
         memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
         disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
+task BamStats {
+    meta {
+        desciption: "generate bamstats file for a given alignment."
+    }
+
+    parameter_meta {
+        input_bam: "input bam"
+        input_bai: "input bai"
+    }
+
+    input {
+        File input_bam
+        File input_bai
+        File? ref_fasta
+        RuntimeAttr? runtime_attr_override
+    }
+
+    Int disk_size = 50 + 2*ceil(size(input_bam, "GB"))
+
+    command <<<
+    set -euo pipefail # if anything breaks crash out
+
+    # get the number of procs we have available
+    NPROCS=$(cat /proc/cpuinfo | grep '^processor' | tail -n1 | awk '{print $NF+1}' )
+
+    mkdir -p stats
+
+    echo "generating stats for the provided input bam. please stand by."
+
+    if [[ -s ~{ref_fasta} ]]; then
+        PARAMS="--reference ~{ref_fasta}"
+    else
+        PARAMS=""
+    fi
+
+    OUTFILE="$(basename ~{input_bam})"
+    samtools stats --threads "$NPROCS" $PARAMS ~{input_bam} >"stats/${OUTFILE}.stats"
+    echo "Finished! Have a wonderful day!"
+    >>>
+
+    output {
+        File stats = glob("stats/*.stats")[0]
+    }
+    # no preempt.
+    #########################
+    RuntimeAttr default_attr = object {
+        cpu_cores:          4,
+        mem_gb:             8,
+        disk_gb:            disk_size,
+        boot_disk_gb:       10,
+        preemptible_tries:  0,
+        max_retries:        1,
+        docker:             "mjfos2r/samtools:latest"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])

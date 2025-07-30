@@ -23,7 +23,7 @@ task Chopper {
     Int disk_size = 50 + 3*ceil(size(input_reads, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         NPROCS=$( grep '^processor' /proc/cpuinfo | tail -n1 | awk '{print $NF+1}' )
 
@@ -45,7 +45,7 @@ task Chopper {
     >>>
 
     output {
-        File clean_fq = "~{output_filename}"
+        File trimmed_reads = "~{output_filename}"
         File stats = "stats.tsv"
     }
     # Do not preempt.
