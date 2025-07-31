@@ -184,7 +184,7 @@ task FixBamHeaderRG {
         # first things first, lets pull our basename
         fname="$(basename ~{input_bam})"
         # okay, pull the current header with a simple grep and save it to a file.
-        samtools view -H ~{input_bam} > dirty_header.sam
+        samtools view -H ~{input_bam} > header_dirty.sam
         cat header_dirty.sam | grep "^@RG" > rgs_used.txt
 
         # now pull these headers and count how many of each we've got in this file
