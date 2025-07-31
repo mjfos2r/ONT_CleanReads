@@ -28,7 +28,7 @@ task Classify {
 
         # first things first we gotta crack open our kraken2 db and get it setup where it needs to be
         KRAKEN2_DB_PATH="/kraken2_dbs"
-        tar -xzf ~{kraken_db} -C "$KRAKEN2_DB_PATH" --strip-components=1
+        tar -xvzf ~{kraken_db} -C "$KRAKEN2_DB_PATH" --strip-components=1
 
         # ok now lets just get some simple stats on our input reads
         echo "Generating basic stats on our input reads using seqkit..."
