@@ -24,13 +24,15 @@ task FastQC {
         set -euo pipefail
 
         NPROCS=$(cat /proc/cpuinfo | grep '^processor' | tail -n1 | awk '{print $NF+1}')
-
+        RAM_IN_MB=$( free -m | grep "^Mem" | awk '{print $2}' )
+        MEM_PER_THREAD=$( echo "" | awk "{print int(($RAM_IN_MB - 1000)/$NPROCS)}" )
         mkdir outdir
 
         if ~{nanopore}; then
             echo "Beginning execution of FastQC in Nanopore mode!"
             fastqc \
                 -t "$NPROCS" \
+                --memory "$MEM_PER_THREAD" \
                 --outdir outdir \
                 --nano \
                 ~{reads}
@@ -39,6 +41,7 @@ task FastQC {
             echo "Beginning execution of FastQC."
             fastqc \
                 -t "$NPROCS" \
+                --memory "$MEM_PER_THREAD" \
                 --outdir outdir \
                 ~{reads}
             echo "Finished!"

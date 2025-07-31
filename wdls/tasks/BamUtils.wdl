@@ -228,7 +228,7 @@ task FixBamHeaderRG {
         fi
 
         # Now we can clean up our header! :)
-        cat dirty_header.sam | \
+        cat header_dirty.sam | \
             awk -v file=rg_to_keep.txt \
             'BEGIN {
                 while ((getline < file) > 0) used[$1] = 1
