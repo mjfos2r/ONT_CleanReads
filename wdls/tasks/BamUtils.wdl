@@ -218,7 +218,7 @@ task FixBamHeaderRG {
             echo "ERROR: More than one unique RG has been identified in this BAM file. Something has gone wrong.\nNum Uniq RGs: $NUMUNIQ"
             exit 1
         else
-            new_rg_id="$(cat uniq_rgs_present.txt)"
+            new_rg_id="$(cat uniq_rgs.txt)"
             echo "New RG for BAM file repair: $new_rg_id"
         fi
 
@@ -253,7 +253,7 @@ task FixBamHeaderRG {
         mem_gb:             4,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  0,
         max_retries:        1,
         docker:             "mjfos2r/samtools:latest"
     }
