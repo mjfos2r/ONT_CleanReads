@@ -7,7 +7,7 @@ task Minimap2 {
         File reads_file
         File ref_fasta
         String prefix
-        String map_preset = "-x map-ont"
+        String map_preset = "lr:hq"
 
         RuntimeAttr? runtime_attr_override
     }
@@ -19,7 +19,7 @@ task Minimap2 {
         ref_fasta:        "reference fasta"
         prefix:           "prefix to use in the output bam file. (e.g. sample1.prefix.bam)"
         # RG parameter removed as BAM already contains read group information from Dorado
-        map_preset:       "[ Default: '-x map-ont' ] preset to be used for minimap2 parameter '-x'"
+        map_preset:       "[ Default: 'lr:hq' ] preset to be used for minimap2 parameter '-x'"
     }
 
     Int disk_size = 1 + 10*2*2*ceil(size(reads_file, "GB") + size(ref_fasta, "GB"))
@@ -85,7 +85,7 @@ task Minimap2 {
         boot_disk_gb:       25,
         preemptible_tries:  3,
         max_retries:        2,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-align:0.1.28"
+        docker:             "mjfos2r/align-tools:latest"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

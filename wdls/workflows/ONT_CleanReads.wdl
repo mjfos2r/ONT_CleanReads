@@ -26,7 +26,7 @@ workflow ONT_CleanReads {
         File ref_genome # pass it whatever you want.
         File kraken2_db
         String taxid_to_keep = "1643685" #taxid for genus: Borrelia
-        String map_preset = "-x lr:hq"
+        String map_preset = "lr:hq"
     }
 
     call QC.FastQC as FastQC_raw { input: reads = reads_fastq }
