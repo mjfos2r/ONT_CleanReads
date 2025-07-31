@@ -18,21 +18,21 @@ task Classify {
         taxid_to_keep: "This is the NCBI taxonomy ID that will be used to filter reads after kraken2 classification. It defaults to the family taxid for Borreliaceae: 1643685, change as desired."
     }
 
-    Float total_input_size = 2 * size(reads_fq, "GB") + size(kraken_db, "GB")
+    Float total_input_size = size(kraken_db, "GB") + 2 * size(reads_fq, "GB")
     Int disk_size = 100 + ceil(total_input_size)
     command <<<
         set -euo pipefail
         shopt -s failglob
 
+        echo "Beginning Execution"
         NPROCS=$(cat /proc/cpuinfo | awk '/^processor/{print}' | wc -l)
 
         # first things first we gotta crack open our kraken2 db and get it setup where it needs to be
-        KRAKEN2_DB_PATH="/kraken2_dbs"
+        KRAKEN2_DB_PATH="kraken2_db"
+        mkdir -p "$KRAKEN2_DB_PATH"
+        echo "Decompressing kraken2 database. please stand by."
         tar -xvzf ~{kraken_db} -C "$KRAKEN2_DB_PATH" --strip-components=1
-
-        # ok now lets just get some simple stats on our input reads
-        echo "Generating basic stats on our input reads using seqkit..."
-        seqkit stats ~{reads_fq} > prefilter_reads_stats.tsv
+        echo "Kraken2 database successfully decompressed."
 
         # now let's classify our reads.
         echo "Classifying reads using kraken2! please stand by..."
@@ -65,8 +65,6 @@ task Classify {
             --include-children
 
         echo "Extraction of classified reads is finished!"
-        echo "Counting filtered reads using seqkit..."
-        seqkit stats "$OUTPUT_FQ" > filtered_reads_stats.tsv
         echo "Gzipping filtered reads! Please stand by."
         gzip "$OUTPUT_FQ"
         echo "Compression finished! Have a wonderful day!"
@@ -79,8 +77,6 @@ task Classify {
         File krona_report = "krona_report.txt"
         File krona_html = "krona_report.html"
         File filtered_reads = glob("*_filtered.fastq.gz")[0]
-        File prefilter_stats = "prefilter_reads.stats.tsv"
-        File filter_stats = "filtered_reads.stats.tsv"
     }
 
     #########################
@@ -89,7 +85,7 @@ task Classify {
         mem_gb:             128,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  0,
         max_retries:        1,
         docker:             "mjfos2r/kraken2:latest"
     }
@@ -97,7 +93,7 @@ task Classify {
     runtime {
         cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
         memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])

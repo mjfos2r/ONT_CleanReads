@@ -98,8 +98,6 @@ workflow ONT_CleanReads {
         File krona_report = Kraken2.krona_report
         File krona_html = Kraken2.krona_html
         File filtered_reads = Kraken2.filtered_reads
-        File prefilter_stats = Kraken2.prefilter_stats
-        File filter_stats = Kraken2.filter_stats
         # MultiQC report
         File multiqc_data_preprocessing = MultiQC.multiqc_data
         File multiqc_report_preprocessing = MultiQC.multiqc_report

@@ -181,16 +181,17 @@ task FixBamHeaderRG {
         set -euo pipefail
         shopt -s failglob
 
-        # first things first, lets pull our basename
+        # first things first, lets make an output directory, pull our basename, and set up the final output filename
         fname="$(basename ~{input_bam})"
-        # okay, pull the current header with a simple grep and save it to a file.
-        samtools view -H ~{input_bam} > header_dirty.sam
-        cat header_dirty.sam | grep "^@RG" > rgs_used.txt
+        output_bam="${fname%.bam}.f.bam"
+        mkdir -p fixed
 
+        # okay, pull the current header with a simple grep and save it to a file, also separate just the readgroups to a separate file
+        samtools view --no-PG -H ~{input_bam} | tee dirty_header.sam | grep "^@RG" > rgs_in_header.txt
         # now pull these headers and count how many of each we've got in this file
-        # in case there is actually RG contamination
-        samtools view ~{input_bam} | awk -F'\t' '
-        {
+        samtools view --no-PG ~{input_bam} | \
+        awk -F'\t' \
+        '{
             for (i=12; i<=NF; i++)
             {
                 if ($i ~ /^RG:Z:/)
@@ -200,54 +201,50 @@ task FixBamHeaderRG {
                     break
                 }
             }
-        }
-        END {
+        } END {
             for (rg in count) print rg "\t" count[rg]
         }' > rgs_counts.txt
 
         # check that we actually have RGs in this bam file.
         if [[ ! -s rgs_counts.txt ]]; then
-            echo "ERROR: rgs_counts.txt is empty! there appear to be no RGs counted in this bam file. Something has gone wrong!"
-            echo "Exiting with error code 1"
+            echo "ERROR: rgs_counts.txt is empty! there appear to be no RGs counted in this bam file. Something has gone wrong."
             exit 1
-        else
-            echo "PASS: rgs_counts.txt is not empty, continuing."
         fi
 
-        # now we need to separate the single RG being used. if more than one, crash out and burn.
-        NUM_USED=$(cat rgs_counts.txt | wc -l) # get simple linecount
-        if [[ "$NUM_USED" -ne 1 ]]; then
-            echo "ERROR: Expected only one RG to have reads. Actually have: $NUM_USED"
-            echo "contents of rgs_counts.txt"
-            cat rgs_counts.txt
-            echo "Exiting with error code 1"
+        # since files merged with samtools merge have UUIDs appended to each RG:ID we need to strip that and collapse the duplicate RGs
+        cat rgs_counts.txt | cut -f1 | sed -E 's/(.*)+(-[A-Z0-9]+)$/\1/'| uniq > uniq_rgs.txt
+        NUMUNIQ="$(cat uniq_rgs.txt | wc -l)"
+        if [[ "$NUMUNIQ" -ne 1 ]]; then
+            echo "ERROR: More than one unique RG has been identified in this BAM file. Something has gone wrong.\nNum Uniq RGs: $NUMUNIQ"
             exit 1
         else
-            echo "PASS: Found only one RG with reads in our bam file. Continuing with header cleaning"
-            cat rgs_counts.txt | cut -f1 > rg_to_keep.txt
+            new_rg_id="$(cat uniq_rgs_present.txt)"
+            echo "New RG for BAM file repair: $new_rg_id"
         fi
 
-        # Now we can clean up our header! :)
-        cat header_dirty.sam | \
-            awk -v file=rg_to_keep.txt \
-            'BEGIN {
-                while ((getline < file) > 0) used[$1] = 1
-            }
-            {
-                if ($0 ~ /^@RG/) {
-                    match($0, /ID:([^ \t]+)/, arr)
-                    if (arr[1] in used) print $0
-                } else {
-                    print $0
-                }
-            }' > clean_header.sam
-        # and now we reheader our bam with the cleaned header!
-        mkdir -p fixed
-        samtools reheader clean_header.sam ~{input_bam} > fixed/"${fname%.bam}.clean_header.bam"
+        # now we need to prep the actual RG line for samtools. grep the line we want into a new file.
+        cat dirty_header.sam | grep "^@RG" | grep "$new_rg_id\s" | tee new_rg_line.txt
+
+        # and now we actually fix the readgroups in our bam.
+        samtools addreplacerg \
+            -w \
+            -m overwrite_all \
+            -r "$(cat new_rg_line.txt)" \
+            -o fixed_rg.bam \
+            ~{input_bam}
+
+        # we also need to deal with @PG lines.
+        samtools view --no-PG -H fixed_rg.bam | sed -E 's/(.*)+(-[A-Z0-9]+\s)+(.*)$/\1\t\3/' | uniq > clean_header.sam
+        # and finally, we reheader our original bamfile.
+        samtools reheader \
+            clean_header.sam \
+            fixed_rg.bam > "fixed/${output_bam}"
+
+        echo "BAM file successfully repaired. Have a wonderful day."
     >>>
 
     output {
-        File sanitized_bam = glob("fixed/*.clean_header.bam")[0]
+        File sanitized_bam = glob("fixed/*.f.bam")[0]
     }
 
     #########################
