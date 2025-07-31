@@ -36,7 +36,7 @@ task Classify {
 
         # now let's classify our reads.
         echo "Classifying reads using kraken2! please stand by..."
-        k2 \
+        k2 classify \
             --db "$KRAKEN2_DB_PATH" \
             --threads "$NPROCS" \
             --memory-mapping \
