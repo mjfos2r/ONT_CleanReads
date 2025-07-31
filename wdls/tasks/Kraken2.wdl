@@ -18,8 +18,9 @@ task Classify {
         taxid_to_keep: "This is the NCBI taxonomy ID that will be used to filter reads after kraken2 classification. It defaults to the family taxid for Borreliaceae: 1643685, change as desired."
     }
 
-    Float total_input_size = size(kraken_db, "GB") + 2 * size(reads_fq, "GB")
-    Int disk_size = 100 + ceil(total_input_size)
+    # the db is compressed so it will run out of disk unless given plenty of room.
+    Float total_input_size = 2 * size(kraken_db, "GB") + 2 * size(reads_fq, "GB")
+    Int disk_size = 365 + ceil(total_input_size)
     command <<<
         set -euo pipefail
         shopt -s failglob
@@ -81,8 +82,8 @@ task Classify {
 
     #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          32,
-        mem_gb:             128,
+        cpu_cores:          16,
+        mem_gb:             64,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  0,
