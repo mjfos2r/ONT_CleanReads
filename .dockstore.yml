@@ -1,8 +1,10 @@
 version: 1.2
 workflows:
-- name: ONT_CleanReads
-  subclass: wdl
-  primaryDescriptorPath: /wdls/workflows/ONT_CleanReads.wdl
-- name: ONT_FixBamHeader
-  subclass: wdl
-  primaryDescriptorPath: /wdls/workflows/ONT_FixBamHeader.wdl
+  - name: ONT_CleanReads
+    subclass: wdl
+    primaryDescriptorPath: /wdls/workflows/ONT_CleanReads.wdl
+    latestTagAsDefault: 'true'
+  - name: ONT_FixBamHeader
+    subclass: wdl
+    primaryDescriptorPath: /wdls/workflows/ONT_FixBamHeader.wdl
+    latestTagAsDefault: 'true'
