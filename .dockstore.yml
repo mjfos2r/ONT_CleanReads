@@ -6,4 +6,3 @@ workflows:
 - name: ONT_FixBamHeader
   subclass: wdl
   primaryDescriptorPath: /wdls/workflows/ONT_FixBamHeader.wdl
-
