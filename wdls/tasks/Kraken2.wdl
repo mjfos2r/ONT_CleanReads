@@ -57,12 +57,14 @@ task Classify {
 
         OUTPUT_FQ="~{sample_id}_filtered.fastq"
 
+        # forgot to specify fastq-output... duh.
         extract_kraken_reads.py \
             -k kraken2_output.k2 \
             -r kraken2_report.txt \
             -s ~{reads_fq} \
             -o "$OUTPUT_FQ" \
             -t ~{taxid_to_keep} \
+            --fastq-output \
             --include-children
 
         echo "Extraction of classified reads is finished!"
