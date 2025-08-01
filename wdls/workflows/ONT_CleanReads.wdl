@@ -13,7 +13,8 @@ workflow ONT_CleanReads {
         description: "Workflow to trim and filter reads for assembly and downstream processing"
     }
     parameter_meta {
-        raw_reads: "raw reads, preferably in fastq format."
+        reads_fastq: "raw reads, preferably in fastq format."
+        contam_fa:   "file containing barcodes, adapters, and DNA_CS for use in trimming and filtering"
     }
 
     input {
