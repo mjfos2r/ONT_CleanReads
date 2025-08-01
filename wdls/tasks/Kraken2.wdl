@@ -57,7 +57,8 @@ task Classify {
 
         OUTPUT_FQ="~{sample_id}_filtered.fastq"
 
-        # forgot to specify fastq-output... duh.
+        # this script uses carriage returns which pollutes stdout.
+        # pipe it through sed and strip all of the unnecessary lines.
         extract_kraken_reads.py \
             -k kraken2_output.k2 \
             -r kraken2_report.txt \
@@ -65,7 +66,7 @@ task Classify {
             -o "$OUTPUT_FQ" \
             -t ~{taxid_to_keep} \
             --fastq-output \
-            --include-children
+            --include-children 2>&1 | sed '/\r/d'
 
         echo "Extraction of classified reads is finished!"
         echo "Gzipping filtered reads! Please stand by."
