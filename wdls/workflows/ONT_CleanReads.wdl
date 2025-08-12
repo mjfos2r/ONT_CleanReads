@@ -20,7 +20,7 @@ workflow ONT_CleanReads {
         Int filt_min_len = 1000
         Int filt_min_qual = 20
         Boolean compress_chopper_output = true
-        File ref_genome # pass it whatever you want.
+        File? ref_genome # pass it whatever you want or nothing at all.
         File kraken2_db
         String taxid_to_keep = "1643685" #taxid for genus: Borrelia
         String map_preset = "lr:hq"
@@ -56,7 +56,7 @@ workflow ONT_CleanReads {
         call MM2.Minimap2 as RefAln {
             input:
                 reads_file = Kraken2.filtered_reads,
-                ref_fasta = ref_genome,
+                ref_fasta = select_first([ref_genome]),
                 prefix = sample_id,
                 map_preset = map_preset
         }
