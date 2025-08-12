@@ -12,10 +12,6 @@ workflow ONT_CleanReads {
     meta {
         description: "Workflow to trim and filter reads for assembly and downstream processing"
     }
-    parameter_meta {
-        reads_fastq: "raw reads, preferably in fastq format."
-        contam_fa:   "file containing barcodes, adapters, and DNA_CS for use in trimming and filtering"
-    }
 
     input {
         String sample_id
@@ -44,13 +40,6 @@ workflow ONT_CleanReads {
 
     call QC.FastQC as FastQC_trimmed { input: reads = Chopper.trimmed_reads }
 
-    call BAM.BamStats as RefAlnBamStats {
-        input:
-            input_bam = RefAln.aligned_bam,
-            input_bai = RefAln.aligned_bai,
-            ref_fasta = ref_genome,
-    }
-
     call K2.Classify as Kraken2 {
         input:
             reads_fq = Chopper.trimmed_reads,
@@ -59,23 +48,35 @@ workflow ONT_CleanReads {
             taxid_to_keep = taxid_to_keep
     }
 
-    call MM2.Minimap2 as RefAln {
-        input:
-            reads_file = Kraken2.filtered_reads,
-            ref_fasta = ref_genome,
-            prefix = sample_id,
-            map_preset = map_preset
+    # check for reference assembly passed as input.
+    Boolean have_reference= defined(ref_genome)
+
+    # if we have it, align our cleaned reads against it and get some bamstats.
+    if (have_reference) {
+        call MM2.Minimap2 as RefAln {
+            input:
+                reads_file = Kraken2.filtered_reads,
+                ref_fasta = ref_genome,
+                prefix = sample_id,
+                map_preset = map_preset
+        }
+        call BAM.BamStats as RefAlnBamStats {
+            input:
+                input_bam = RefAln.aligned_bam,
+                input_bai = RefAln.aligned_bai,
+                ref_fasta = ref_genome,
+        }
     }
 
     call QC.FastQC as FastQC_filtered { input: reads = Kraken2.filtered_reads }
 
-    Array[File] reports = [
+    Array[File] reports = select_all([
         FastQC_raw.fastqc_data,
         FastQC_trimmed.fastqc_data,
         FastQC_filtered.fastqc_data,
-        RefAlnBamStats.stats,
         Kraken2.kraken2_report,
-    ]
+        RefAlnBamStats.stats,
+    ]) # select_all(Array[T?] -> Array[T]) handle it for me.
 
     call QC.MultiQC { input: input_files = reports }
 
@@ -89,10 +90,10 @@ workflow ONT_CleanReads {
         # fastqc_trimmed output
         File fastqc_trimmed_data = FastQC_raw.fastqc_data
         File fastqc_trimmed_report = FastQC_raw.fastqc_report
-        # alignment of trimmed reads against reference genome.
-        File ReadsVsRef_bam = RefAln.aligned_bam
-        File ReadsVsRef_bai = RefAln.aligned_bai
-        File ReadsVsRef_stats = RefAlnBamStats.stats
+        # alignment of trimmed reads against reference genome. (if provided)
+        File? ReadsVsRef_bam = RefAln.aligned_bam
+        File? ReadsVsRef_bai = RefAln.aligned_bai
+        File? ReadsVsRef_stats = RefAlnBamStats.stats
         # kraken2 output
         File kraken2_output = Kraken2.kraken2_output
         File kraken2_report = Kraken2.kraken2_report
