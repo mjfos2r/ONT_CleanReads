@@ -30,10 +30,11 @@ workflow ONT_CleanReads {
         String map_preset = "lr:hq"
     }
 
-    call QC.FastQC as FastQC_raw { input: reads = reads_fastq }
+    call QC.FastQC as FastQC_raw { input: reads = reads_fastq } # basename(reads)_raw
 
     call CHP.Chopper {
         input:
+            sample_id = sample_id,
             input_reads = reads_fastq,
             contam_fa = contam_fa,
             min_length = filt_min_len,
@@ -42,14 +43,6 @@ workflow ONT_CleanReads {
     }
 
     call QC.FastQC as FastQC_trimmed { input: reads = Chopper.trimmed_reads }
-
-    call MM2.Minimap2 as RefAln {
-        input:
-            reads_file = Chopper.trimmed_reads,
-            ref_fasta = ref_genome,
-            prefix = sample_id,
-            map_preset = map_preset
-    }
 
     call BAM.BamStats as RefAlnBamStats {
         input:
@@ -64,6 +57,14 @@ workflow ONT_CleanReads {
             kraken_db = kraken2_db,
             sample_id = sample_id,
             taxid_to_keep = taxid_to_keep
+    }
+
+    call MM2.Minimap2 as RefAln {
+        input:
+            reads_file = Kraken2.filtered_reads,
+            ref_fasta = ref_genome,
+            prefix = sample_id,
+            map_preset = map_preset
     }
 
     call QC.FastQC as FastQC_filtered { input: reads = Kraken2.filtered_reads }
@@ -83,8 +84,8 @@ workflow ONT_CleanReads {
         File fastqc_raw_data = FastQC_raw.fastqc_data
         File fastqc_raw_report = FastQC_raw.fastqc_report
         # chopper output + stats
-        File R1_trimmed = Chopper.trimmed_reads
-        File R1_chopper_stats = Chopper.stats
+        File trimmed_reads = Chopper.trimmed_reads
+        File trimmed_reads_chopper_stats = Chopper.stats
         # fastqc_trimmed output
         File fastqc_trimmed_data = FastQC_raw.fastqc_data
         File fastqc_trimmed_report = FastQC_raw.fastqc_report
@@ -98,7 +99,8 @@ workflow ONT_CleanReads {
         File kraken2_log = Kraken2.kraken2_log
         File krona_report = Kraken2.krona_report
         File krona_html = Kraken2.krona_html
-        File filtered_reads = Kraken2.filtered_reads
+        # we're sticking with raw -> trimmed -> filtered -> cleaned
+        File cleaned_reads = Kraken2.filtered_reads
         # MultiQC report
         File multiqc_data_preprocessing = MultiQC.multiqc_data
         File multiqc_report_preprocessing = MultiQC.multiqc_report

@@ -4,6 +4,7 @@ import "../structs/Structs.wdl"
 
 task Chopper {
     input {
+        String sample_id
         File input_reads
         File contam_fa
         Int min_quality = 10
@@ -16,9 +17,9 @@ task Chopper {
         Int mem_gb = 8
         RuntimeAttr? runtime_attr_override
     }
-    String basename = sub(basename(input_reads), "\\..*$", "")
+
     Boolean is_input_gzipped = sub(input_reads, ".*\\.", "") == "gz"
-    String output_filename = basename + ".clean.fq" + (if compress_output then ".gz" else "")
+    String output_filename = sample_id + "_trimmed.fq" + (if compress_output then ".gz" else "")
 
     Int disk_size = 50 + 3*ceil(size(input_reads, "GB"))
 

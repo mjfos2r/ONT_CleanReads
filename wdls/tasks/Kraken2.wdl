@@ -55,7 +55,7 @@ task Classify {
 
         echo "HTML krona report created!"
 
-        OUTPUT_FQ="~{sample_id}_filtered.fastq"
+        OUTPUT_FQ="~{sample_id}_clean.fastq"
 
         # this script uses carriage returns which pollutes stdout.
         # pipe it through sed and strip all of the unnecessary lines.
@@ -80,7 +80,7 @@ task Classify {
         File kraken2_log = "kraken2_log.txt"
         File krona_report = "krona_report.txt"
         File krona_html = "krona_report.html"
-        File filtered_reads = glob("*_filtered.fastq.gz")[0]
+        File filtered_reads = glob("*_clean.fastq.gz")[0]
     }
 
     #########################
