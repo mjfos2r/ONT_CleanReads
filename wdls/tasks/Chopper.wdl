@@ -10,43 +10,80 @@ task Chopper {
         Int min_quality = 10
         Int min_length = 500
         Boolean compress_output = true
-        # NO EXTRA ARGS NO NO NO
-        # CHOPPER DOESNT LIKE EMPTY STRINGS AS ARGS.
-
-        Int num_cpus = 4
-        Int mem_gb = 8
+        Int num_cpus = 32
+        Int mem_gb = 128
         RuntimeAttr? runtime_attr_override
     }
 
-    Boolean is_input_gzipped = sub(input_reads, ".*\\.", "") == "gz"
-    String output_filename = sample_id + "_trimmed.fq" + (if compress_output then ".gz" else "")
+    String output_reads = sample_id + "_trimmed.fq" + (if compress_output then ".gz" else "")
 
-    Int disk_size = 50 + 3*ceil(size(input_reads, "GB"))
+    Int disk_size = 500 + 3*ceil(size(input_reads, "GB")) # refer to the GCP documentation on IOP by resources.
 
     command <<<
-        set -euo pipefail
+        set -euxo pipefail
+        shopt -s nullglob
 
-        NPROCS=$( grep '^processor' /proc/cpuinfo | tail -n1 | awk '{print $NF+1}' )
+        DECOMP_T=1 # one thread for reading the file
+        STATS_T=4 # four per stats instance (is default)
+        ALL_STATS_T=$(( STATS_T * 2 )) # eight threads total
+        PIGZ_T=4
+        RESERVED_T=$((DECOMP_T + ALL_STATS_T + PIGZ_T))
+        NPROCS=$( cat /proc/cpuinfo | grep '^processor' | tail -n1 | awk '{print $NF+1}' || 1 )
 
-        # Determine input type and run appropriate Chopper command
-        if [ "~{is_input_gzipped}" == "true" ]; then
-            # Input is gzipped
-            gunzip -c "~{input_reads}" | \
-            chopper --contam "~{contam_fa}" -q "~{min_quality}" -l "~{min_length}" --threads "$NPROCS" | \
-            ~{if compress_output then "gzip" else "cat"} > "~{output_filename}"
-        else
-            # Input is not gzipped
-            chopper --contam "~{contam_fa}" -q "~{min_quality}" -l "~{min_length}" -i "~{input_reads}" --threads "$NPROCS" | \
-            ~{if compress_output then "gzip" else "cat"} > "~{output_filename}"
+        if [[ "${NPROCS}" -lt "${RESERVED_T}" ]]; then
+            echo "ERROR: Number of CPUs provided is insufficient. Please specify more than (${RESERVED_T} + 4) and try again." >&2
         fi
 
-        # Calculate read stats before
-        seqkit stats ~{input_reads} -b -a -T > "stats.tsv"
-        seqkit stats ~{output_filename} -b -a -T | tail -n +2 >> "stats.tsv"
+        CHOPPER_T=$(( NPROCS - RESERVED_T ))
+
+        in_name="$(basename ~{input_reads})"
+        out_file="~{output_reads}"
+        GZOUT="~{compress_output}"
+        CHOPPER_ARGS=(
+            --contam "~{contam_fa}"
+            -q "~{min_quality}"
+            -l "~{min_length}"
+            --threads "${CHOPPER_T}"
+        )
+        # some helper functions
+        stream() {
+            case "$1" in
+                *.gz) zcat -- "$1" ;;
+                *)    cat -- "$1" ;;
+            esac
+        }
+        writer() {
+            local isgz="$GZOUT"
+            local pgz_threads="$PIGZ_THREADS"
+            case "$isgz" in
+                true) pigz -1cp "$pgz_threads" -- ;;
+                false) cat -- ;;
+            esac
+        }
+        # timing function for debugging and optimization
+        timeit() {
+            local start end rc cmd
+            start="${EPOCHREALTIME}"
+            "$@"; rc=$?; cmd="$1"
+            end="${EPOCHREALTIME}"
+            awk -v c="$cmd" -v s="$start" -v e="$end" 'BEGIN {printf "Elapsed: %s took %.3f s\n", c, (e-s)}' >&2
+            return $rc
+        }
+
+        ## Actually process our reads now.
+
+        #shellcheck disable=SC2094
+        timeit stream ~{input_reads} \
+            | tee >(timeit seqkit stats -i "${in_name}" -aT >raw_stats.tsv) \
+            | timeit chopper "${CHOPPER_ARGS[@]}" \
+            | tee >(timeit seqkit stats -i "${out_file}" -aT >trim_stats.tsv) \
+            | writer > "${out_file}"
+
+        cat raw_stats.tsv trim_stats.tsv > stats.tsv
     >>>
 
     output {
-        File trimmed_reads = "~{output_filename}"
+        File trimmed_reads = "~{output_reads}"
         File stats = "stats.tsv"
     }
     # Do not preempt.
@@ -64,7 +101,7 @@ task Chopper {
     runtime {
         cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
         memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])

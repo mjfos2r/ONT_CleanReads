@@ -8,6 +8,8 @@ task Classify {
         File kraken_db
         String sample_id
         String taxid_to_keep = "1643685" # borrelia genus taxid
+        Int num_cpus = 32
+        Int mem_gb = 128
         RuntimeAttr? runtime_attr_override
     }
 
@@ -25,6 +27,16 @@ task Classify {
         set -euo pipefail
         shopt -s failglob
 
+                # timing function for debugging and optimization
+        timeit() {
+            local start end rc cmd
+            start="${EPOCHREALTIME}"
+            "$@"; rc=$?; cmd="$1"
+            end="${EPOCHREALTIME}"
+            awk -v c="$cmd" -v s="$start" -v e="$end" 'BEGIN {printf "Elapsed: %s took %.3f s\n", c, (e-s)}' >&2
+            return $rc
+        }
+
         echo "Beginning Execution"
         NPROCS=$(cat /proc/cpuinfo | awk '/^processor/{print}' | wc -l)
 
@@ -32,34 +44,34 @@ task Classify {
         KRAKEN2_DB_PATH="kraken2_db"
         mkdir -p "$KRAKEN2_DB_PATH"
         echo "Decompressing kraken2 database. please stand by."
-        tar -xvzf ~{kraken_db} -C "$KRAKEN2_DB_PATH" --strip-components=1
+        timeit rapidgzip -cP "${NPROCS}" -d ~{kraken_db} | timeit tar -xvf - -C "$KRAKEN2_DB_PATH" --strip-components=1
         echo "Kraken2 database successfully decompressed."
 
         # now let's classify our reads.
         echo "Classifying reads using kraken2! please stand by..."
-        k2 classify \
+        timeit k2 classify \
             --db "$KRAKEN2_DB_PATH" \
             --threads "$NPROCS" \
             --memory-mapping \
             --report kraken2_report.txt \
             --log kraken2_log.txt \
             ~{reads_fq} > kraken2_output.k2
+        echo "Classification with k2 is finished!"
 
-        kreport2krona.py \
+        timeit kreport2krona.py \
             -r kraken2_report.txt \
             -o krona_report.txt
-
         echo "txt krona report created!"
 
-        ktImportText krona_report.txt -o krona_report.html
-
+        timeit ktImportText krona_report.txt -o krona_report.html
         echo "HTML krona report created!"
 
+        # set up output file
         OUTPUT_FQ="~{sample_id}_cleaned.fastq"
-
         # this script uses carriage returns which pollutes stdout.
-        # pipe it through sed and strip all of the unnecessary lines.
-        extract_kraken_reads.py \
+        # pipe it through sed and strip all of the unnecessary lines
+        # so that stdout is still readable.
+        timeit extract_kraken_reads.py \
             -k kraken2_output.k2 \
             -r kraken2_report.txt \
             -s ~{reads_fq} \
@@ -70,7 +82,7 @@ task Classify {
 
         echo "Extraction of classified reads is finished!"
         echo "Gzipping filtered reads! Please stand by."
-        gzip "$OUTPUT_FQ"
+        timeit cat "$OUTPUT_FQ" | timeit pigz -1cp "$NPROCS" > "${OUTPUT_FQ}.gz"
         echo "Compression finished! Have a wonderful day!"
     >>>
 
@@ -80,13 +92,13 @@ task Classify {
         File kraken2_log = "kraken2_log.txt"
         File krona_report = "krona_report.txt"
         File krona_html = "krona_report.html"
-        File filtered_reads = glob("*_cleaned.fastq.gz")[0]
+        File filtered_reads = glob("*_cleaned.f*q.gz")[0]
     }
 
     #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          16,
-        mem_gb:             64,
+        cpu_cores:          num_cpus,
+        mem_gb:             mem_gb,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  0,

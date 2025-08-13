@@ -1,9 +1,7 @@
 version 1.0
-import "../structs/Structs.wdl"
 import "../tasks/Chopper.wdl" as CHP
 import "../tasks/Minimap2.wdl" as MM2
 import "../tasks/BamUtils.wdl" as BAM
-import "../tasks/GeneralUtils.wdl" as UTILS
 import "../tasks/QC.wdl" as QC
 import "../tasks/Kraken2.wdl" as K2
 
@@ -17,8 +15,8 @@ workflow ONT_CleanReads {
         String sample_id
         File reads_fastq
         File contam_fa
-        Int filt_min_len = 1000
         Int filt_min_qual = 20
+        Int filt_min_len = 1000
         Boolean compress_chopper_output = true
         File? ref_genome # pass it whatever you want or nothing at all.
         File kraken2_db
@@ -33,8 +31,8 @@ workflow ONT_CleanReads {
             sample_id = sample_id,
             input_reads = reads_fastq,
             contam_fa = contam_fa,
-            min_length = filt_min_len,
             min_quality = filt_min_qual,
+            min_length = filt_min_len,
             compress_output = compress_chopper_output
     }
 
