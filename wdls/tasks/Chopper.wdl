@@ -20,7 +20,7 @@ task Chopper {
     Int disk_size = 500 + 3*ceil(size(input_reads, "GB")) # refer to the GCP documentation on IOP by resources.
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         shopt -s nullglob
 
         DECOMP_T=1 # one thread for reading the file
@@ -54,9 +54,9 @@ task Chopper {
         }
         writer() {
             local isgz="$GZOUT"
-            local pgz_threads="$PIGZ_THREADS"
+            local pgz_t="$PIGZ_T"
             case "$isgz" in
-                true) pigz -1cp "$pgz_threads" -- ;;
+                true) pigz -1cp "$pgz_t" -- ;;
                 false) cat -- ;;
             esac
         }
