@@ -306,11 +306,15 @@ task BamStats {
 
     OUTFILE="$(basename ~{input_bam})"
     samtools stats --threads "$NPROCS" $PARAMS ~{input_bam} >"stats/${OUTFILE}.stats"
+    samtools flagstat --threads "$NPROCS" $PARAMS ~{input_bam} >"stats/${OUTFILE}.stats"
+    samtools coverage stats --threads "$NPROCS" $PARAMS ~{input_bam} >"stats/${OUTFILE}.stats"
     echo "Finished! Have a wonderful day!"
     >>>
 
     output {
         File stats = glob("stats/*.stats")[0]
+        File flagstat = glob("stats/*.flagstat")[0]
+        File coverage = glob("stats/*.coverage")[0]
     }
     # no preempt.
     #########################

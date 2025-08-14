@@ -14,6 +14,7 @@ task FastQC {
 
     input {
         File reads
+        String? tag
         Boolean nanopore = true
         RuntimeAttr? runtime_attr_override
     }
@@ -31,6 +32,12 @@ task FastQC {
         # TODO: Add filesize conditional where if there's too many reads, it just takes a subsample
         #       using seqkit sample or something similar. Something like 25% if it's a file over 20GiB...
         #       this is just ridiculous tbh.
+        if [[ -n ~{tag} ]]; then
+            reads_fn=~{reads}
+            reads="${reads_fn%%.*}_~{tag}.fq.gz"
+        else
+            reads=~{reads}
+        fi
 
         if ~{nanopore}; then
             echo "Beginning execution of FastQC in Nanopore mode!"
@@ -111,6 +118,7 @@ task MultiQC {
 
         multiqc \
             --outdir multiqc_out \
+            --fullnames \
             --zip-data-dir \
             --interactive \
             input_data

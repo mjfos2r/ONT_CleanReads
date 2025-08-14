@@ -74,6 +74,8 @@ workflow ONT_CleanReads {
         FastQC_cleaned.fastqc_data,
         Kraken2.kraken2_report,
         RefAlnBamStats.stats,
+        RefAlnBamStats.flagstat,
+        RefAlnBamStats.coverage
     ]) # select_all(Array[T?] -> Array[T]) handle it for me.
 
     call QC.MultiQC { input: input_files = reports }
