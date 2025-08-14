@@ -52,7 +52,6 @@ task Classify {
         timeit k2 classify \
             --db "$KRAKEN2_DB_PATH" \
             --threads "$NPROCS" \
-            --memory-mapping \
             --report kraken2_report.txt \
             --log kraken2_log.txt \
             ~{reads_fq} > kraken2_output.k2
@@ -67,23 +66,38 @@ task Classify {
         echo "HTML krona report created!"
 
         # set up output file
-        OUTPUT_FQ="~{sample_id}_cleaned.fastq"
+        OUTPUT_FQ_CLASSIFIED="~{sample_id}_cleaned.fastq"
+        OUTPUT_FQ_UNCLASSIFIED="~{sample_id}_unclassified.fastq"
+
         # this script uses carriage returns which pollutes stdout.
         # pipe it through sed and strip all of the unnecessary lines
         # so that stdout is still readable.
+        echo "Extracting classified reads..."
         timeit extract_kraken_reads.py \
             -k kraken2_output.k2 \
             -r kraken2_report.txt \
             -s ~{reads_fq} \
-            -o "$OUTPUT_FQ" \
+            -o "$OUTPUT_FQ_CLASSIFIED" \
             -t ~{taxid_to_keep} \
             --fastq-output \
             --include-children 2>&1 | sed '/\r/d'
-
         echo "Extraction of classified reads is finished!"
-        echo "Gzipping filtered reads! Please stand by."
-        timeit cat "$OUTPUT_FQ" | timeit pigz -1cp "$NPROCS" > "${OUTPUT_FQ}.gz"
-        echo "Compression finished! Have a wonderful day!"
+
+        echo "Extracting unclassified reads..."
+        timeit extract_kraken_reads.py \
+            -k kraken2_output.k2 \
+            -r kraken2_report.txt \
+            -s ~{reads_fq} \
+            -o "$OUTPUT_FQ_UNCLASSIFIED" \
+            -t 0 \
+            --fastq-output 2>&1 | sed '/\r/d'
+        echo "Extraction of UNclassified reads is finished!"
+
+
+        echo "Compressing classified reads. Please stand by..."
+        timeit cat "$OUTPUT_FQ_CLASSIFIED" | timeit pigz -1cp "$NPROCS" > "${OUTPUT_FQ_CLASSIFIED}.gz"
+        echo "Compression finished! Now compressing unclassified reads..."
+        timeit cat "$OUTPUT_FQ_UNCLASSIFIED" | timeit pigz -1cp "$NPROCS" > "${OUTPUT_FQ_UNCLASSIFIED}.gz"
     >>>
 
     output {
@@ -92,7 +106,8 @@ task Classify {
         File kraken2_log = "kraken2_log.txt"
         File krona_report = "krona_report.txt"
         File krona_html = "krona_report.html"
-        File filtered_reads = glob("*_cleaned.f*q.gz")[0]
+        File classified_reads = glob("*_cleaned.f*q*")[0]
+        File unclassified_reads = glob("*_unclassified.f*q*")[0]
     }
 
     #########################

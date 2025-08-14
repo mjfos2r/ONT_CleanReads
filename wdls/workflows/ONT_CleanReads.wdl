@@ -20,7 +20,7 @@ workflow ONT_CleanReads {
         Boolean compress_chopper_output = true
         File? ref_genome # pass it whatever you want or nothing at all.
         File kraken2_db
-        String taxid_to_keep = "1643685" #taxid for genus: Borrelia
+        String taxid_to_keep = "1643685" #taxid for genus: Borrelia # 157 taxid for Treponema
         String map_preset = "lr:hq"
     }
 
@@ -53,7 +53,7 @@ workflow ONT_CleanReads {
     if (have_reference) {
         call MM2.Minimap2 as RefAln {
             input:
-                reads_file = Kraken2.filtered_reads,
+                reads_file = Kraken2.classified_reads,
                 ref_fasta = select_first([ref_genome]),
                 prefix = sample_id,
                 map_preset = map_preset
@@ -66,7 +66,7 @@ workflow ONT_CleanReads {
         }
     }
 
-    call QC.FastQC as FastQC_cleaned { input: reads = Kraken2.filtered_reads }
+    call QC.FastQC as FastQC_cleaned { input: reads = Kraken2.classified_reads }
 
     Array[File] reports = select_all([
         FastQC_raw.fastqc_data,
@@ -93,7 +93,8 @@ workflow ONT_CleanReads {
         File krona_report = Kraken2.krona_report
         File krona_html = Kraken2.krona_html
         # we're sticking with raw -> trimmed -> filtered -> cleaned
-        File cleaned_reads = Kraken2.filtered_reads
+        File cleaned_reads = Kraken2.classified_reads
+        File unclassified_reads = Kraken2.unclassified_reads
         # MultiQC report
         File multiqc_data_preprocessing = MultiQC.multiqc_data
         File multiqc_report_preprocessing = MultiQC.multiqc_report
