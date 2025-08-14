@@ -100,12 +100,14 @@ task MultiQC {
     Int disk_size = 365 + ceil(size(input_files, "GB"))
 
     command <<<
-        set -euo pipefail
+        set -euxo pipefail
 
         NPROCS=$(cat /proc/cpuinfo | grep '^processor' | tail -n1 | awk '{print $NF+1}')
 
         mkdir input_data multiqc_out
         cp ~{sep=" " input_files} input_data/
+        echo "Contents of input_data:"
+        ls input_data/
 
         multiqc \
             --outdir multiqc_out \
