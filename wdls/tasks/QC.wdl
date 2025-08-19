@@ -4,12 +4,11 @@ import "../structs/Structs.wdl"
 task FastQC {
     meta {
         description: "Use FastQC to generate QC reports for a given input file of reads."
+        author: "Michael J. Foster"
     }
-
     parameter_meta {
         reads: "Single file containing our reads. should be fastq.gz or bam"
         nanopore: "flag specifying if input is from nanopore [default: false]"
-        runtime_attr_override: "Override the default runtime attributes."
     }
 
     input {
@@ -33,8 +32,12 @@ task FastQC {
         #       using seqkit sample or something similar. Something like 25% if it's a file over 20GiB...
         #       this is just ridiculous tbh.
         if [[ -n ~{tag} ]]; then
+            reads_dn="$(dirname ~{reads})"
             reads_fn=~{reads}
-            reads="${reads_fn%%.*}_~{tag}.fq.gz"
+            reads_ext="${reads_fn#*.}"
+            reads="${reads_dn}/${reads_fn%%.*}_~{tag}.${reads_ext}"
+            echo "Using ~{tag} to rename [ $(basename ~{reads}) ] to [ ${reads} ]"
+            mv ~{reads} "${reads}"
         else
             reads=~{reads}
         fi

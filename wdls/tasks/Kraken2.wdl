@@ -3,6 +3,16 @@ version 1.0
 import "../structs/Structs.wdl"
 
 task Classify {
+    meta {
+        description: "Workflow to classify input reads using kraken2"
+        author: "Michael J. Foster"
+    }
+    parameter_meta {
+        reads_fq: "reads in fastq format to be classified"
+        kraken_db: "kraken2 database to use in classification"
+        sample_id: "sample_id for the reads being classified"
+        taxid_to_keep: "This is the NCBI taxonomy ID that will be used to filter reads after kraken2 classification. It defaults to the family taxid for Borreliaceae: 1643685, change as desired."
+    }
     input {
         File reads_fq
         File kraken_db
@@ -11,13 +21,6 @@ task Classify {
         Int num_cpus = 32
         Int mem_gb = 128
         RuntimeAttr? runtime_attr_override
-    }
-
-    parameter_meta {
-        reads_fq: "reads in fastq format to be classified"
-        kraken_db: "kraken2 database to use in classification"
-        sample_id: "sample_id for the reads being classified"
-        taxid_to_keep: "This is the NCBI taxonomy ID that will be used to filter reads after kraken2 classification. It defaults to the family taxid for Borreliaceae: 1643685, change as desired."
     }
 
     # the db is compressed so it will run out of disk unless given plenty of room.

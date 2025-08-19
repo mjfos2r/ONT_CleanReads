@@ -7,6 +7,7 @@ import "../structs/Structs.wdl"
 task MergeBams {
     meta {
         desciption: "when provided with a directory of bam files for a given barcode, merge them all into a single file, sort it, and index it. also return flagstats"
+        author: "Michael J. Foster"
     }
 
     parameter_meta {
@@ -90,6 +91,7 @@ task MergeBams {
 task Bam2Fastq {
     meta {
         description: "convert bam to fastq.gz file and preserve all tags written by Dorado basecaller."
+        author: "Michael J. Foster"
     }
 
     parameter_meta {
@@ -163,16 +165,16 @@ task Bam2Fastq {
 }
 
 task FixBamHeaderRG {
-    input {
-        File input_bam
-        String? RG
-
-        RuntimeAttr? runtime_attr_override
+    meta {
+        description: "Workflow to repair bam files prepared with samtools merge instead of samtools cat. Fixes bams with mangled RG and PG headers."
+        author: "Michael J. Foster"
     }
-
     parameter_meta {
         input_bam: "raw bam with dirty header, filled with unused RGs"
-        RG: "Optional: read group to keep? Not implemented." # nah no need, unless?
+    }
+    input {
+        File input_bam
+        RuntimeAttr? runtime_attr_override
     }
 
     Int disk_size = 365 +  2 * ceil(size(input_bam, "GB"))
@@ -272,6 +274,7 @@ task FixBamHeaderRG {
 task BamStats {
     meta {
         desciption: "generate bamstats file for a given alignment."
+        author: "Michael J. Foster"
     }
 
     parameter_meta {

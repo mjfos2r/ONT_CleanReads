@@ -22,9 +22,10 @@ workflow ONT_CleanReads {
         File kraken2_db
         String taxid_to_keep = "1643685" #taxid for genus: Borrelia # 157 taxid for Treponema
         String map_preset = "lr:hq"
+        Boolean nanopore = true
     }
 
-    call QC.FastQC as FastQC_raw { input: reads = reads_fastq } # basename(reads)_raw
+    call QC.FastQC as FastQC_raw { input: reads = reads_fastq, tag = "raw", nanopore = nanopore}
 
     call CHP.Chopper {
         input:

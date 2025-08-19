@@ -3,14 +3,6 @@ version 1.0
 import "../structs/Structs.wdl"
 # swiped from a broad workflow ;)
 task Minimap2 {
-    input {
-        File reads_file
-        File ref_fasta
-        String prefix
-        String map_preset = "lr:hq"
-
-        RuntimeAttr? runtime_attr_override
-    }
     meta {
         description: "A wrapper to minimap2 for mapping & aligning a single sequence file to a reference"
     }
@@ -20,6 +12,14 @@ task Minimap2 {
         prefix:           "prefix to use in the output bam file. (e.g. sample1.prefix.bam)"
         # RG parameter removed as BAM already contains read group information from Dorado
         map_preset:       "[ Default: 'lr:hq' ] preset to be used for minimap2 parameter '-x'"
+    }
+    input {
+        File reads_file
+        File ref_fasta
+        String prefix
+        String map_preset = "lr:hq"
+
+        RuntimeAttr? runtime_attr_override
     }
 
     Int disk_size = 1 + 10*2*2*ceil(size(reads_file, "GB") + size(ref_fasta, "GB"))

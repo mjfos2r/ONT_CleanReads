@@ -7,6 +7,7 @@ import "../structs/Structs.wdl"
 task CompressTarPigz {
     meta {
         description: "compress files into a tarball using parallel gzip and generate an md5 checksum"
+        author: "Michael J. Foster"
     }
 
     parameter_meta {
@@ -107,17 +108,15 @@ task GetTodayDate {
 task ValidateMd5sum {
     meta {
         description: "simple task to validate checksum of a file"
+        author: "Michael J. Foster"
     }
-
     parameter_meta {
         file: "input_file to validate"
         checksum: "file containing checksum"
     }
-
     input {
         File file
         File checksum
-
         RuntimeAttr? runtime_attr_override
     }
 
@@ -173,15 +172,14 @@ task ValidateMd5sum {
 task DecompressRunTarball {
     meta {
         description: "Decompress a validated run tarball containing barcodes using pigz"
+        author: "Michael J. Foster"
     }
-
     parameter_meta {
         tarball: "validated tarball to decompress"
         is_valid: "boolean flag indicating whether or not the tarball integrity is intact (md5sum)"
         singleplex: "boolean flag to indicate whether the run being processed is barcoded or singleplex. must specify sample_id if set to true (default: false)"
         sample_id: "optional string to pass if the run being decompressed is a singleplex run."
     }
-
     input {
         File tarball
         Boolean is_valid

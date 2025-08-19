@@ -3,6 +3,20 @@ version 1.0
 import "../structs/Structs.wdl"
 
 task Chopper {
+    meta {
+        description: "Task to trim and filter ONT reads using Chopper."
+        author: "Michael J. Foster"
+    }
+    parameter_meta {
+        sample_id: "String containing the sample_id for these reads"
+        input_reads: "File containing the raw reads to be trimmed and filtered."
+        contam_fa: "File containing sequences to filter against. Contains DNA_CS, barcode sequences, and adapters."
+        min_quality: "Integer for the minimum quality to keep reads. [Default: 10]"
+        min_length: "Integer for the minimum length to keep reads. [Default: 500]"
+        compress_output: "Boolean flag to compress output reads? [Default: true]"
+        num_cpus: "Integer count of cpus to use in trimming. must be at least 16. [Default: 32]"
+        mem_gb: "Integer for the amount of memory in GiB to use in trimming. [Default: 128]"
+    }
     input {
         String sample_id
         File input_reads
