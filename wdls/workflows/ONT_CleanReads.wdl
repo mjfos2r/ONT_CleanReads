@@ -37,7 +37,7 @@ workflow ONT_CleanReads {
             compress_output = compress_chopper_output
     }
 
-    call QC.FastQC as FastQC_trimmed { input: reads = Chopper.trimmed_reads }
+    call QC.FastQC as FastQC_trimmed { input: reads = Chopper.trimmed_reads, nanopore = nanopore}
 
     call K2.Classify as Kraken2 {
         input:
@@ -67,7 +67,7 @@ workflow ONT_CleanReads {
         }
     }
 
-    call QC.FastQC as FastQC_cleaned { input: reads = Kraken2.classified_reads }
+    call QC.FastQC as FastQC_cleaned { input: reads = Kraken2.classified_reads, nanopore = nanopore}
 
     Array[File] reports = select_all([
         FastQC_raw.fastqc_data,

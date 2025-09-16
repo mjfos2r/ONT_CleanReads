@@ -13,7 +13,6 @@ task FastQC {
 
     input {
         File reads
-        String? tag
         Boolean nanopore = true
         RuntimeAttr? runtime_attr_override
     }
@@ -27,20 +26,6 @@ task FastQC {
         RAM_IN_MB=$( free -m | grep "^Mem" | awk '{print $2}' )
         MEM_PER_THREAD=$( echo "" | awk "{print int(($RAM_IN_MB - 1000)/$NPROCS)}" )
         mkdir outdir
-
-        # TODO: Add filesize conditional where if there's too many reads, it just takes a subsample
-        #       using seqkit sample or something similar. Something like 25% if it's a file over 20GiB...
-        #       this is just ridiculous tbh.
-        if [[ -n ~{tag} ]]; then
-            reads_dn="$(dirname ~{reads})"
-            reads_fn=~{reads}
-            reads_ext="${reads_fn#*.}"
-            reads="${reads_dn}/${reads_fn%%.*}_~{tag}.${reads_ext}"
-            echo "Using ~{tag} to rename [ $(basename ~{reads}) ] to [ ${reads} ]"
-            mv ~{reads} "${reads}"
-        else
-            reads=~{reads}
-        fi
 
         if ~{nanopore}; then
             echo "Beginning execution of FastQC in Nanopore mode!"
