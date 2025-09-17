@@ -63,7 +63,6 @@ workflow ONT_CleanReads {
             input:
                 input_bam = RefAln.aligned_bam,
                 input_bai = RefAln.aligned_bai,
-                ref_fasta = ref_genome,
         }
     }
 
@@ -76,7 +75,8 @@ workflow ONT_CleanReads {
         Kraken2.kraken2_report,
         RefAlnBamStats.stats,
         RefAlnBamStats.flagstat,
-        RefAlnBamStats.coverage
+        RefAlnBamStats.coverage,
+        RefAlnBamStats.covhist
     ]) # select_all(Array[T?] -> Array[T]) handle it for me.
 
     call QC.MultiQC { input: input_files = reports }
@@ -89,6 +89,8 @@ workflow ONT_CleanReads {
         File? ReadsVsRef_bam = RefAln.aligned_bam
         File? ReadsVsRef_bai = RefAln.aligned_bai
         File? ReadsVsRef_stats = RefAlnBamStats.stats
+        File? ReadsVsRef_covhist = RefAlnBamStats.covhist
+        Array[File] ReadsVsRef_reports = reports
         # kraken2 output
         File kraken2_output = Kraken2.kraken2_output
         File kraken2_report = Kraken2.kraken2_report

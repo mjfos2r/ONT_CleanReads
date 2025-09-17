@@ -285,7 +285,6 @@ task BamStats {
     input {
         File input_bam
         File input_bai
-        File? ref_fasta
         RuntimeAttr? runtime_attr_override
     }
 
@@ -301,16 +300,11 @@ task BamStats {
 
     echo "generating stats for the provided input bam. please stand by."
 
-    if [[ -s ~{ref_fasta} ]]; then
-        PARAMS="--reference ~{ref_fasta}"
-    else
-        PARAMS=""
-    fi
-
     OUTFILE="$(basename ~{input_bam})"
-    samtools stats --threads "$NPROCS" $PARAMS ~{input_bam} >"stats/${OUTFILE}.stats"
-    samtools flagstat --threads "$NPROCS" $PARAMS ~{input_bam} >"stats/${OUTFILE}.stats"
-    samtools coverage stats --threads "$NPROCS" $PARAMS ~{input_bam} >"stats/${OUTFILE}.stats"
+    samtools stats --threads "$NPROCS" ~{input_bam} >"stats/${OUTFILE}.stats"
+    samtools flagstat --threads "$NPROCS" ~{input_bam} >"stats/${OUTFILE}.flagstat"
+    samtools coverage ~{input_bam} >"stats/${OUTFILE}.coverage"
+    samtools coverage -m ~{input_bam} >"stats/${OUTFILE}.covhist"
     echo "Finished! Have a wonderful day!"
     >>>
 
@@ -318,6 +312,7 @@ task BamStats {
         File stats = glob("stats/*.stats")[0]
         File flagstat = glob("stats/*.flagstat")[0]
         File coverage = glob("stats/*.coverage")[0]
+        File covhist = glob("stats/*.covhist")[0]
     }
     # no preempt.
     #########################
