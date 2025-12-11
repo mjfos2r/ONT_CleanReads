@@ -18,14 +18,13 @@ task Minimap2 {
         File ref_fasta
         String prefix
         String map_preset = "lr:hq"
-
+        Int cpus = 4
+        Int mem = 32
         RuntimeAttr? runtime_attr_override
     }
 
     Int disk_size = 1 + 10*2*2*ceil(size(reads_file, "GB") + size(ref_fasta, "GB"))
 
-    Int cpus = 4
-    Int mem = 30
 
     command <<<
         set -euxo pipefail

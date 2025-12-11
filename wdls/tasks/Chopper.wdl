@@ -14,8 +14,8 @@ task Chopper {
         min_quality: "Integer for the minimum quality to keep reads. [Default: 10]"
         min_length: "Integer for the minimum length to keep reads. [Default: 500]"
         compress_output: "Boolean flag to compress output reads? [Default: true]"
-        num_cpus: "Integer count of cpus to use in trimming. must be at least 16. [Default: 32]"
-        mem_gb: "Integer for the amount of memory in GiB to use in trimming. [Default: 128]"
+        num_cpus: "Integer count of cpus to use in trimming. must be at least 16. [Default: 8]"
+        mem_gb: "Integer for the amount of memory in GiB to use in trimming. [Default: 32]"
     }
     input {
         String sample_id
@@ -24,8 +24,8 @@ task Chopper {
         Int min_quality = 10
         Int min_length = 500
         Boolean compress_output = true
-        Int num_cpus = 32
-        Int mem_gb = 128
+        Int num_cpus = 8
+        Int mem_gb = 32
         RuntimeAttr? runtime_attr_override
     }
 
@@ -107,7 +107,7 @@ task Chopper {
         mem_gb:             mem_gb,
         disk_gb:            disk_size,
         boot_disk_gb:       25,
-        preemptible_tries:  0,
+        preemptible_tries:  3,
         max_retries:        1,
         docker:             "mjfos2r/chopper:latest"
     }

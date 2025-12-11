@@ -18,8 +18,8 @@ task Classify {
         File kraken_db
         String sample_id
         String taxid_to_keep = "1643685" # borrelia genus taxid
-        Int num_cpus = 32
-        Int mem_gb = 128
+        Int num_cpus = 16
+        Int mem_gb = 64
         RuntimeAttr? runtime_attr_override
     }
 
@@ -54,6 +54,7 @@ task Classify {
         echo "Classifying reads using kraken2! please stand by..."
         timeit k2 classify \
             --db "$KRAKEN2_DB_PATH" \
+            --memory-mapping \
             --threads "$NPROCS" \
             --report kraken2_report.txt \
             --log kraken2_log.txt \

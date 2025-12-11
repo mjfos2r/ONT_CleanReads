@@ -37,6 +37,7 @@ task MergeBams {
         echo "  - $bam"
     done
 
+    # This should not be used for merging multiple bams for a single RG but for multiple bams of multiple RGs.
     # merge and sort em
     samtools merge \
         -f \
@@ -98,16 +99,16 @@ task Bam2Fastq {
         input_bam: "Bam file to convert to fastq"
         sample_id: "Optional: our sample id                          [Default: basename(input_bam)]"
         st_params: "Parameters to pass to samtools during conversion [Default: -T '*']"
-        num_cpus:  "how many cores to use for conversion             [Default: 8]"
-        mem_gb:    "how much memory to use for conversion            [Default: 32]"
+        num_cpus:  "how many cores to use for conversion             [Default: 4]"
+        mem_gb:    "how much memory to use for conversion            [Default: 16]"
     }
 
     input {
         File input_bam
         String? sample_id
         String st_params = "-T '*'"
-        Int num_cpus = 8
-        Int mem_gb = 32
+        Int num_cpus = 4
+        Int mem_gb = 16
         RuntimeAttr? runtime_attr_override
     }
 
@@ -251,8 +252,8 @@ task FixBamHeaderRG {
 
     #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          16,
-        mem_gb:             64,
+        cpu_cores:          8,
+        mem_gb:             32,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  0,
