@@ -45,7 +45,7 @@ task Chopper {
         RESERVED_T=$((DECOMP_T + ALL_STATS_T + PIGZ_T))
         CHOPPER_T=$((NPROCS - RESERVED_T))# use remaining threads for chopper.
 
-        if [[ "${CHOPPER_T}" -lt 4]]; then
+        if [[ "${CHOPPER_T}" -lt 4 ]]; then
             echo "ERROR: Number of CPUs must be at least 5+4. Chopper has fewer than 4 threads!"
             exit 1
         fi
