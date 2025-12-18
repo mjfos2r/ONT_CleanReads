@@ -24,7 +24,7 @@ task Chopper {
         Int min_quality = 10
         Int min_length = 500
         Boolean compress_output = true
-        Int num_cpus = 8
+        Int num_cpus = 9
         Int mem_gb = 32
         RuntimeAttr? runtime_attr_override
     }
@@ -37,18 +37,19 @@ task Chopper {
         set -euo pipefail
         shopt -s nullglob
 
+        NPROCS=$( cat /proc/cpuinfo | grep '^processor' | tail -n1 | awk '{print $NF+1}' || 1 )
         DECOMP_T=1 # one thread for reading the file
-        STATS_T=4 # four per stats instance (is default)
-        ALL_STATS_T=$(( STATS_T * 2 )) # eight threads total
+        STATS_T=2 # two per stats instance (is default)
+        ALL_STATS_T=$(( STATS_T * 2 )) # four threads total
         PIGZ_T=4
         RESERVED_T=$((DECOMP_T + ALL_STATS_T + PIGZ_T))
-        NPROCS=$( cat /proc/cpuinfo | grep '^processor' | tail -n1 | awk '{print $NF+1}' || 1 )
+        CHOPPER_T=$((NPROCS - RESERVED_T))# use remaining threads for chopper.
 
-        if [[ "${NPROCS}" -lt "${RESERVED_T}" ]]; then
-            echo "ERROR: Number of CPUs provided is insufficient. Please specify more than (${RESERVED_T} + 4) and try again." >&2
+        if [[ "${CHOPPER_T}" -lt 4]]; then
+            echo "ERROR: Number of CPUs must be at least 5+4. Chopper has fewer than 4 threads!"
+            exit 1
         fi
 
-        CHOPPER_T=$(( NPROCS - RESERVED_T ))
 
         in_name="$(basename ~{input_reads})"
         out_file="~{output_reads}"
@@ -88,9 +89,9 @@ task Chopper {
 
         #shellcheck disable=SC2094
         timeit stream ~{input_reads} \
-            | tee >(timeit seqkit stats -i "${in_name}" -aT >raw_stats.tsv) \
+            | tee >(timeit seqkit stats --threads "${STATS_T}" -i "${in_name}" -aT >raw_stats.tsv) \
             | timeit chopper "${CHOPPER_ARGS[@]}" \
-            | tee >(timeit seqkit stats -i "${out_file}" -aT >trim_stats.tsv) \
+            | tee >(timeit seqkit stats --threads "${STATS_T}" -i "${out_file}" -aT | tail -n1 >trim_stats.tsv) \
             | writer > "${out_file}"
 
         cat raw_stats.tsv trim_stats.tsv > stats.tsv

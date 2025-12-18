@@ -171,24 +171,24 @@ task ValidateMd5sum {
 
 task DecompressRunTarball {
     meta {
-        description: "Decompress a validated run tarball containing barcodes using pigz"
-        author: "Michael J. Foster"
+        description: "Decompress a validated run tarball using pigz"
     }
+
     parameter_meta {
         tarball: "validated tarball to decompress"
-        is_valid: "boolean flag indicating whether or not the tarball integrity is intact (md5sum)"
-        singleplex: "boolean flag to indicate whether the run being processed is barcoded or singleplex. must specify sample_id if set to true (default: false)"
-        sample_id: "optional string to pass if the run being decompressed is a singleplex run."
     }
+
     input {
         File tarball
-        Boolean is_valid
+        File tarball_hash
+        File? raw_hash_file
+        File? raw_hash_digest
         Boolean singleplex = false
         String? sample_id
 
         # Runtime parameters
-        Int num_cpus = 8
-        Int mem_gb = 32
+        Int num_cpus = 16
+        Int mem_gb = 64
         RuntimeAttr? runtime_attr_override
     }
 
@@ -199,73 +199,155 @@ task DecompressRunTarball {
 
         NPROC=$(awk '/^processor/{print}' /proc/cpuinfo | wc -l)
 
+        # check for the required args early before decomp.
         if [ -n "~{sample_id}" ] && [ "~{singleplex}" == "true" ]; then
+            echo "[ INFO ]::[ Processing run as singleplex... ]::[ $(date) ]"
             EXTRACTED="extracted/~{sample_id}"
         elif [ "~{singleplex}" == "true" ] || [ -n "~{sample_id}" ]; then
-            echo "ERROR: Singleplex run or sample_id provided but not both! Cannot verify if meant to run as single or multiplex! Check your args and try again!" >&2
+            echo "[ FAIL ]::[ ERROR: Singleplex run or sample_id provided but not both!Check your args and try again! ]::[ $(date) ]"
             exit 1
         else
+            echo "[ INFO ]::[ Processing run as multiplex... ]::[ $(date) ]"
             EXTRACTED="extracted"
         fi
 
-        mkdir -p "$EXTRACTED"
-        mkdir -p merged
+        # now validate the big ole tarball.
+        echo "[ INFO ]::[ Validating tarball checksum... ]::[ $(date) ]"
+        EXPECTED_MD5=$(cat "~{tarball_hash}" | awk '{print $1}')
+        md5sum "~{tarball}" > actual_sum.txt
+        ACTUAL_MD5=$(cat actual_sum.txt | awk '{print $1}')
+        if [ "$EXPECTED_MD5" != "$ACTUAL_MD5" ]; then
+            echo "[ FAIL ]::[ CHECKSUM VALIDATION FAILED FOR ARCHIVE ]::[ $(date) ]"
+            echo "[ HASH ]::[ tarball: EXPECTED_MD5: $EXPECTED_MD5 ]::[ $(date) ]"
+            echo "[ HASH ]::[ tarball:   ACTUAL_MD5: $ACTUAL_MD5 ]::[ $(date) ]"
+            VALID=false
+            echo "false" > valid.txt
+        else
+            echo "[ PASS ]::[ CHECKSUM VALIDATION SUCCESSFUL FOR ARCHIVE ]::[ $(date) ]"
+            echo "[ HASH ]::[ tarball: EXPECTED_MD5: $EXPECTED_MD5 ]::[ $(date) ]"
+            echo "[ HASH ]::[ tarball:   ACTUAL_MD5: $ACTUAL_MD5 ]::[ $(date) ]"
+            VALID=true
+            echo "true" > valid.txt
+        fi
 
-        echo "#####################################"
-        echo "# RUN TARBALL IS VALID: ~{is_valid} #"
-        echo "#####################################"
-
-        if ! ~{is_valid}; then
-            echo "ERROR: NOT ATTEMPTING DECOMPRESSION SINCE TARBALL IS CORRUPTED!"
+        if ! "$VALID"; then
+            echo "[ FAIL ]::[ Extracted reads validation failed! ]::[ $(date) ]"
             exit 1
         fi
-        # todo: figure out a faster way to validate tarball integrity..
+
+        # todo: figure out a faster way to validate tarball integrity..should probably just do the md5sum checking here?
         # handy snippet from community post: 360073540652-Cromwell-execution-directory
         gcs_task_call_basepath=$(cat gcs_delocalization.sh | grep -o '"gs:\/\/.*/glob-.*/' | sed 's#^"##' |sed 's#/$##' | head -n 1)
+        echo "[ INFO ]::[ gcs_task_call_basepath = $gcs_task_call_basepath ]::[ $(date) ]"
+        true > gcs_merged_reads_paths.txt
 
-        echo "$gcs_task_call_basepath"
-        true > gcs_merged_bam_paths.txt
-
-        # crack the tarball, strip the top bam_pass component so we're left with barcode dirs. (or just our bams within the sampleid subdir)
-        tar --use-compress-program=pigz -xf ~{tarball} -C "$EXTRACTED" --strip-components=1
+        mkdir -p "$EXTRACTED"
+        mkdir -p merged
+        echo "[ INFO ]::[ Decompressing archive... ]::[ $(date) ]"
+        # crack the tarball, strip the top bam_pass component so we're left with barcode dirs OR just bams in the sample_id dir.
+        tar -xzf ~{tarball} -C "$EXTRACTED" --strip-components=1
+        echo "[ INFO ]::[ Decompression finished! ]::[ $(date) ]"
+        WD="$(pwd)"
+        # if we've provided the hash and digest, validate em.
+        if [[ -f "~{raw_hash_digest}" && -f "~{raw_hash_file}" ]]; then
+            echo "[ INFO ]::[ Validating raw tarball contents via provided raw_hash and raw_hash_digest files ]::[ $(date) ]"
+            # if we have the raw_hash and raw_digest, check all the reads!
+            # idk if this is properly named, what is a better way to name the hash of many hashes?
+            # file -> md5sum -> file.md5 (hash) -> md5sum -> file.md5.md5 (hash of hash)
+            #                                                (or alternatively, file.md5.digest)
+            #echo -e "\nCurrent location (PWD):               ${PWD}\n"
+            #echo -e "\nCurrent location of files.md5:        $(realpath ~{raw_hash_file})\n"
+            #echo -e "\nCurrent location of files.md5.digest: $(realpath ~{raw_hash_digest})\n"
+            # you know what, actually we need to just pull the digest from hashes.
+            echo "[ INFO ]::[ Validating archive contents hashfile. ]::[ $(date) ]"
+            RAW_MD5_DIGEST_EXPECTED=$(cat "~{raw_hash_digest}" | awk '{print $1}')
+            RAW_MD5_DIGEST_CALC=$(md5sum "~{raw_hash_file}" | awk '{print $1}')
+            if [ "$RAW_MD5_DIGEST_EXPECTED" == "$RAW_MD5_DIGEST_CALC" ]; then
+                echo "[ PASS ]::[ Archive contents hashfile is valid! ]::[ $(date) ]"
+            else
+                echo "[ FAIL ]::[ Archive contents hashfile is invalid! ]::[ $(date) ]"
+                exit 1
+            fi
+            TMPFILE=$(mktemp)
+            # if our hash file is valid, hop into the extracted dir, check everything, then hop back
+            cd "$EXTRACTED"
+            echo "[ INFO ]::[ Validating extracted contents... ]::[ $(date) ]"
+            if md5sum -c "~{raw_hash_file}" 2>&1 | tee "$TMPFILE" | grep "FAILED"; then
+                echo "[ FAIL ]::[ Extracted reads validation failed! ]::[ $(date) ]"
+                cat "$TMPFILE" | grep "FAILED" > ../corrupted_files.txt
+            else
+                echo "[ PASS ]::[ Extracted content integrity: VALID! Continuing with processing! ]::[ $(date) ]"
+                echo "NONE" > "${WD}/corrupted_files.txt"
+            fi
+            cd -
+        else
+            echo ""
+            echo "[ WARN ]::[ no raw_hash_file/raw_hash_digest provided, skipping checks on extracted contents ]::[ $(date) ]"
+        fi
 
         # Get a list of our directories, pull the barcode ID, all so we can make a list of files for each
         find extracted -mindepth 1 -maxdepth 1 -type d | sort > directory_list.txt
+        echo "List of directories within $EXTRACTED"
+        cat directory_list.txt
+        echo ""
         cut -d'/' -f2 directory_list.txt > barcodes.txt
         mkdir -p file_lists
 
         # Count the number of directories for verification
         wc -l directory_list.txt | awk '{print $1}' > directory_count.txt
         # Create/clear the counts file before the loop
-        true > bam_counts.txt
+        true > file_counts.txt
 
-        # read the list of barcode dirs and then merge each barcode's bams.
-        # for singleplex, the barcode is the sampleid.
+        # do NOT use samtools merge as it will mangle the read groups and cause significant grief when
+        # trying to use this file downstream.
+        index=1
+        num_barcodes=$(cat directory_list.txt|wc -l)
         while read -r DIR_PATH; do
-            BARCODE=$(basename "$DIR_PATH")
-            BAM_LIST="file_lists/${BARCODE}_bams.txt"
-
-            find "$DIR_PATH" -name "*.bam" | sort > "file_lists/${BARCODE}_bams.txt"
-            wc -l < "$BAM_LIST" >> bam_counts.txt
-            # merge em
-            samtools merge -f -@ "$NPROC" -o merged/"${BARCODE}.merged.bam" -b "$BAM_LIST"
-            echo "${gcs_task_call_basepath}/${BARCODE}.merged.bam" >> gcs_merged_bam_paths.txt
+            BARCODE="$(basename "$DIR_PATH")"
+            # if we have bams, merge the bams.
+            if [[ -n $(find "$DIR_PATH" -name "*.bam" -print -quit) ]]; then
+                echo "[ ${BARCODE} ]::[ BAM input detected. Merging reads ]::[ ${index}/${num_barcodes} ]"
+                BAM_LIST="file_lists/${BARCODE}_files.txt"
+                find "$DIR_PATH" -name "*.bam" | sort > "file_lists/${BARCODE}_files.txt"
+                cat "${BAM_LIST}" | wc -l >> file_counts.txt
+                samtools cat -o merged/"${BARCODE}_raw.merged.bam" -b "$BAM_LIST"
+                echo "${gcs_task_call_basepath}/${BARCODE}_raw.merged.bam" >> gcs_merged_reads_paths.txt
+                (( index+=1 ))
+            elif [[ -n $(find "$DIR_PATH" -name "*.f*q.gz" -print -quit) ]]; then
+                echo "[ ${BARCODE} ]::[ Fastq input detected. Merging reads ]::[ ${index}/${num_barcodes} ]"
+                FQ_LIST="file_lists/${BARCODE}_files.txt"
+                find "$DIR_PATH" -name "*.f*q.gz" | sort > "file_lists/${BARCODE}_files.txt"
+                cat "${FQ_LIST}" | wc -l >> file_counts.txt
+                xargs zcat <"$FQ_LIST" | pigz -c -p "$NPROC" > "merged/${BARCODE}_raw.merged.fastq.gz"
+                echo "${gcs_task_call_basepath}/${BARCODE}_raw.merged.fastq.gz" >> gcs_merged_reads_paths.txt
+                (( index+=1 ))
+            else
+                echo "[ ERROR ]::[ NO BAM OR FASTQ FILES FOUND IN $DIR_PATH ]::[ $(date) ]"
+                (( index+=1 ))
+            fi
         done < directory_list.txt
+        echo "[ INFO ]::[ Finished merging all reads. Task complete! ]::[ $(date) ]"
         >>>
 
     output {
         # how many barcodes we working with?
         Int directory_count = read_int("directory_count.txt")
-        # how many bams we got?
-        Array[Int] bam_counts = read_lines("bam_counts.txt")
-        # output the lists of files we've just merged. no clue how I forgot to add this before...
-        Array[File] file_list = glob("file_lists/*_bams.txt")
+        Array[String] directory_list = read_lines("directory_list.txt")
+        # how many read files we got?
+        Array[Int] file_counts = read_lines("file_counts.txt")
+        # and what files did we merge?
+        Array[File] file_list = glob("file_lists/*_files.txt")
         # output an array of our barcode_ids
         Array[String] barcode = read_lines("barcodes.txt")
-        # output an array of our merged bam_files.
-        Array[File] merged_bam = glob("merged/*.bam")
-        # and the raw paths to our globs.
-        File glob_paths = "gcs_merged_bam_paths.txt"
+        ### Actually, we don't need to mess with this, we need this output to merged_reads in the seqrun table and only changed in the samplesheet. easy enough!
+        # depending on what input was fed into this, output either to:
+        # merged_fastq or merged_bam column
+        #Array[File]? merged_fastq = glob("merged/*.merged.fastq.gz")
+        #Array[File]? merged_bam = glob("merged/*.merged.bam")
+        Array[File] merged_reads = glob("merged/*.merged.*")
+        File glob_paths = "gcs_merged_reads_paths.txt"
+        Boolean is_valid = read_boolean("valid.txt")
+        File corrupted_files = "corrupted_files.txt"
     }
 
     #########################
@@ -278,7 +360,7 @@ task DecompressRunTarball {
         boot_disk_gb:       50,
         preemptible_tries:  0,
         max_retries:        1,
-        docker:             "mjfos2r/samtools:latest"
+        docker:             "mjfos2r/align-tools:latest"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
