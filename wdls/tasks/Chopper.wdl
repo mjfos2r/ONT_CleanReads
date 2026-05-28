@@ -22,31 +22,33 @@ task Chopper {
         File input_reads
         File contam_fa
         Int min_quality = 10
-        Int min_length = 500
+        Int? max_quality
+        Int min_length = 1
+        Int? max_length
         Boolean compress_output = true
-        Int num_cpus = 9
-        Int mem_gb = 32
+        Int num_cpus = 16
+        Int mem_gb = 64
         RuntimeAttr? runtime_attr_override
     }
 
     String output_reads = sample_id + "_trimmed.fq" + (if compress_output then ".gz" else "")
 
-    Int disk_size = 500 + 3*ceil(size(input_reads, "GB")) # refer to the GCP documentation on IOP by resources.
+    Int disk_size = 200 + 3*ceil(size(input_reads, "GB")) # refer to the GCP documentation on IOP by resources.
 
     command <<<
         set -euo pipefail
         shopt -s nullglob
 
         NPROCS=$( cat /proc/cpuinfo | grep '^processor' | tail -n1 | awk '{print $NF+1}' || 1 )
-        DECOMP_T=1 # one thread for reading the file
-        STATS_T=2 # two per stats instance (is default)
-        ALL_STATS_T=$(( STATS_T * 2 )) # four threads total
+        DECOMP_T=1
+        STATS_T=2
         PIGZ_T=4
+        ALL_STATS_T=$((STATS_T * 2))
         RESERVED_T=$((DECOMP_T + ALL_STATS_T + PIGZ_T))
-        CHOPPER_T=$((NPROCS - RESERVED_T)) # use remaining threads for chopper.
+        CHOPPER_T=$((NPROCS - RESERVED_T))
 
-        if [[ "${CHOPPER_T}" -lt 4 ]]; then
-            echo "ERROR: Number of CPUs must be at least 5+4. Chopper has fewer than 4 threads!"
+        if [[ ${CHOPPER_T} -lt 4 ]]; then
+            echo "ERROR: Number of CPUs must be at least 9. You have ${NPROCS}. Chopper has ${CHOPPER_T} threads."
             exit 1
         fi
 
@@ -57,7 +59,9 @@ task Chopper {
         CHOPPER_ARGS=(
             --contam "~{contam_fa}"
             -q "~{min_quality}"
-            -l "~{min_length}"
+            ~{if defined(max_quality) then "--maxqual " + max_quality else ""}
+            ~{if defined(min_length) then "--minlength " + min_length else ""}
+            ~{if defined(max_length) then "--maxlength " + max_length else ""}
             --threads "${CHOPPER_T}"
         )
         # some helper functions
